@@ -144,7 +144,12 @@ void loop() {
 
     if (checkBound(newTemp, temp, diff) || forceMsg) {
       temp = newTemp;
-      float temp_c=temp; // Celsius
+      // See https://forums.adafruit.com/viewtopic.php?f=31&t=86996&p=442117&hilit=bme280#p442117
+      // for discussion of inaccuracy of the temperature sensing of the BME280
+      // In this case we'll add a fixed correction offset to the temp in deg C and
+      // let the conversion to deg F take care of itself
+      float temp_correction=2;
+      float temp_c=temp+temp_correction; // Celsius
       float temp_f=temp*1.8F+32.0F; // Fahrenheit
       Serial.print("New temperature:");
       Serial.print(String(temp_c) + " degC   ");
