@@ -34,6 +34,7 @@ char mqtt_user[40] = "";
 char mqtt_password[40] = "";
 char device_set[10] = "1";
 char baro_corr[20] = "0";
+char temp_corr[20] = "0";
 
 //flag for saving data
 bool shouldSaveConfig = false;
@@ -58,7 +59,13 @@ void setup() {
   digitalWrite(red_led, HIGH);  
   digitalWrite(blue_led, HIGH);  
   Serial.begin(115200);
-  setup_wifi(false);
+  // If the trigger pin is held during setup we will force a WiFI configuration
+  // setup instead of using the stored values
+  if ( digitalRead(TRIGGER_PIN) == LOW ) {
+    setup_wifi(true);
+  } else {
+    setup_wifi(false);
+  }
 
   // Set SDA and SDL ports
   //Wire.begin(2, 14);
@@ -113,6 +120,7 @@ void setup_wifi(bool force) {
           strcpy(mqtt_password, json["mqtt_password"]);
           strcpy(device_set, json["device_set"]);
           strcpy(baro_corr, json["baro_corr"]);
+          strcpy(temp_corr, json["temp_corr"]);
 
         } else {
           Serial.println("failed to load json config");
@@ -133,7 +141,8 @@ void setup_wifi(bool force) {
   WiFiManagerParameter custom_mqtt_user("user", "mqtt user", mqtt_user, 40);
   WiFiManagerParameter custom_mqtt_password("password", "mqtt password", mqtt_password, 40);
   WiFiManagerParameter custom_device_set("set", "device set", device_set, 10);
-  WiFiManagerParameter custom_baro_corr("barocorr", "baro correction", baro_corr, 20);
+  WiFiManagerParameter custom_baro_corr("barocorr", "baro hPa correction", baro_corr, 20);
+  WiFiManagerParameter custom_temp_corr("tempcorr", "temp C correction", temp_corr, 20);
   
   //WiFiManager
   //Local intialization. Once its business is done, there is no need to keep it around
@@ -147,6 +156,7 @@ void setup_wifi(bool force) {
   wifiManager.addParameter(&custom_mqtt_password);
   wifiManager.addParameter(&custom_device_set);
   wifiManager.addParameter(&custom_baro_corr);
+  wifiManager.addParameter(&custom_temp_corr);
 
   //reset settings - for testing
   //wifiManager.resetSettings();
@@ -188,6 +198,7 @@ void setup_wifi(bool force) {
   strcpy(mqtt_password, custom_mqtt_password.getValue());
   strcpy(device_set, custom_device_set.getValue());
   strcpy(baro_corr, custom_baro_corr.getValue());
+  strcpy(temp_corr, custom_temp_corr.getValue());
 
   //save the custom parameters to FS
   if (shouldSaveConfig) {
@@ -201,6 +212,7 @@ void setup_wifi(bool force) {
     json["mqtt_password"] = mqtt_password;
     json["device_set"] = device_set;
     json["baro_corr"] = baro_corr;
+    json["temp_corr"] = temp_corr;   
 
     File configFile = SPIFFS.open("/config.json", "w");
     if (!configFile) {
@@ -241,6 +253,12 @@ void reconnect() {
       delay(200);
       blink_red();
       delay(4760);
+      // If the trigger pin is held this will get us out of a MQTT reconnect loop
+      // to set new MQTT information in case the WiFi connection info is good
+      // but the MQTT setup needs to be changed
+      if ( digitalRead(TRIGGER_PIN) == LOW ) {
+        setup_wifi(true);
+      }
     }
   }
 }
@@ -259,6 +277,7 @@ float diff = 1.0;
 
 
 void loop() {
+  // If the trigger pin is held we'll force a new WiFi and MQTT setup cycle
   if ( digitalRead(TRIGGER_PIN) == LOW ) {
     setup_wifi(true);
   }
@@ -304,6 +323,12 @@ void loop() {
   // Positive for altitude above sea level
   float baro_corr_hpa = String(baro_corr).toFloat();
 
+  // See https://forums.adafruit.com/viewtopic.php?f=31&t=86996&p=442117&hilit=bme280#p442117
+  // for discussion of inaccuracy of the temperature sensing of the BME280
+  // In this case we'll add a fixed correction offset to the temp in deg C and
+  // let the conversion to deg F take care of itself
+  float temp_corr_c=String(temp_corr).toFloat();
+
   long now = millis();
   if (now - lastMsg > 1000) {
     lastMsg = now;
@@ -323,12 +348,7 @@ void loop() {
 
     if (checkBound(newTemp, temp, diff) || forceMsg) {
       temp = newTemp;
-      // See https://forums.adafruit.com/viewtopic.php?f=31&t=86996&p=442117&hilit=bme280#p442117
-      // for discussion of inaccuracy of the temperature sensing of the BME280
-      // In this case we'll add a fixed correction offset to the temp in deg C and
-      // let the conversion to deg F take care of itself
-      float temp_correction=2;
-      float temp_c=temp+temp_correction; // Celsius
+      float temp_c=temp+temp_corr_c; // Celsius
       float temp_f=temp*1.8F+32.0F; // Fahrenheit
       Serial.print("New temperature:");
       Serial.print(String(temp_c) + " degC   ");
