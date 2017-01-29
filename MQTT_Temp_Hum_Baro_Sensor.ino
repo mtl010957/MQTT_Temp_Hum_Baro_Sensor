@@ -45,9 +45,6 @@ void saveConfigCallback () {
   shouldSaveConfig = true;
 }
 
-#define red_led 0
-#define blue_led 2
-
 WiFiClient espClient;
 PubSubClient client(espClient);
 Adafruit_BME280 bme; // I2C
@@ -59,7 +56,7 @@ void setup() {
   digitalWrite(red_led, HIGH);  
   digitalWrite(blue_led, HIGH);  
   Serial.begin(115200);
-  // If the trigger pin is held during setup we will force a WiFI configuration
+  // If the trigger pin is held during setup we will force a WiFi configuration
   // setup instead of using the stored values
   if ( digitalRead(TRIGGER_PIN) == LOW ) {
     setup_wifi(true);
@@ -147,6 +144,9 @@ void setup_wifi(bool force) {
   //WiFiManager
   //Local intialization. Once its business is done, there is no need to keep it around
   WiFiManager wifiManager;
+
+  //set config save notify callback
+  wifiManager.setSaveConfigCallback(saveConfigCallback);
 
   //add all your parameters here
   wifiManager.addParameter(&custom_client_name);
