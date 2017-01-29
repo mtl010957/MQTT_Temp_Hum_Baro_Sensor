@@ -27,7 +27,7 @@
 #define blue_led 2
 
 //define your default values here, if there are different values in config.json, they are overwritten.
-char client_name[40] = "";
+char client_name[40] = "ESP8266Client_sensor_1";
 char mqtt_server[40] = "";
 char mqtt_port[6] = "1883";
 char mqtt_user[40] = "";
